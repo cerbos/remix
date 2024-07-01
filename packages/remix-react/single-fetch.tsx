@@ -197,7 +197,9 @@ function singleFetchLoaderStrategy(
         if (manifest.routes[m.route.id].hasClientLoader) {
           result = await handler(async () => {
             url.searchParams.set("_routes", m.route.id);
-            let { data } = await fetchAndDecode(url);
+            let { data } = await fetchAndDecode(url, {
+              headers: request.headers,
+            });
             return unwrapSingleFetchResults(
               data as SingleFetchResults,
               m.route.id
@@ -214,9 +216,9 @@ function singleFetchLoaderStrategy(
                 matches.filter((m) => m.shouldLoad).map((m) => m.route),
                 url
               );
-              singleFetchPromise = fetchAndDecode(url).then(
-                ({ data }) => data as SingleFetchResults
-              );
+              singleFetchPromise = fetchAndDecode(url, {
+                headers: request.headers,
+              }).then(({ data }) => data as SingleFetchResults);
             }
             let results = await singleFetchPromise;
             return unwrapSingleFetchResults(results, m.route.id);
