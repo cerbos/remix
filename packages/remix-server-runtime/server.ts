@@ -621,7 +621,7 @@ async function handleDocumentRequest(
       );
     } catch (error: any) {
       handleError(error);
-      return returnLastResortErrorResponse(error, serverMode);
+      throw error;
     }
   }
 }
@@ -724,7 +724,7 @@ async function handleResourceRequest(
     }
 
     handleError(error);
-    return returnLastResortErrorResponse(error, serverMode);
+    throw error;
   }
 }
 
@@ -746,22 +746,6 @@ function errorResponseToJson(
       },
     }
   );
-}
-
-function returnLastResortErrorResponse(error: any, serverMode?: ServerMode) {
-  let message = "Unexpected Server Error";
-
-  if (serverMode !== ServerMode.Production) {
-    message += `\n\n${String(error)}`;
-  }
-
-  // Good grief folks, get your act together 😂!
-  return new Response(message, {
-    status: 500,
-    headers: {
-      "Content-Type": "text/plain",
-    },
-  });
 }
 
 function unwrapResponse(response: Response) {
