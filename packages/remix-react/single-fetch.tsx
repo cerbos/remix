@@ -192,14 +192,14 @@ function singleFetchLoaderStrategy(
       m.resolve(async (handler): Promise<HandlerResult> => {
         let result: unknown;
         let url = stripIndexParam(singleFetchUrl(request.url));
+        let init = await createRequestInit(request);
+        init.headers = request.headers;
 
         // When a route has a client loader, it calls it's singular server loader
         if (manifest.routes[m.route.id].hasClientLoader) {
           result = await handler(async () => {
             url.searchParams.set("_routes", m.route.id);
-            let { data } = await fetchAndDecode(url, {
-              headers: request.headers,
-            });
+            let { data } = await fetchAndDecode(url, init);
             return unwrapSingleFetchResults(
               data as SingleFetchResults,
               m.route.id
@@ -216,9 +216,9 @@ function singleFetchLoaderStrategy(
                 matches.filter((m) => m.shouldLoad).map((m) => m.route),
                 url
               );
-              singleFetchPromise = fetchAndDecode(url, {
-                headers: request.headers,
-              }).then(({ data }) => data as SingleFetchResults);
+              singleFetchPromise = fetchAndDecode(url, init).then(
+                ({ data }) => data as SingleFetchResults
+              );
             }
             let results = await singleFetchPromise;
             return unwrapSingleFetchResults(results, m.route.id);
@@ -309,7 +309,7 @@ export function singleFetchUrl(reqUrl: URL | string) {
   return url;
 }
 
-async function fetchAndDecode(url: URL, init?: RequestInit) {
+async function fetchAndDecode(url: URL, init: RequestInit) {
   let res = await fetch(url, init);
   // Don't do a hard check against the header here.  We'll get `text/x-turbo`
   // when we have a running server, but if folks want to prerender `.data` files
