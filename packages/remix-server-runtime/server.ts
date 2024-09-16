@@ -214,7 +214,11 @@ export const createRequestHandler: CreateRequestHandlerFunction = (
 
         if (isRedirectResponse(response)) {
           let result: SingleFetchResult | SingleFetchResults =
-            getSingleFetchRedirect(response.status, response.headers);
+            getSingleFetchRedirect(
+              response.status,
+              response.headers,
+              _build.basename
+            );
 
           if (request.method === "GET") {
             result = {
@@ -222,7 +226,7 @@ export const createRequestHandler: CreateRequestHandlerFunction = (
             };
           }
           let headers = new Headers(response.headers);
-          headers.set("Content-Type", "text/x-turbo");
+          headers.set("Content-Type", "text/x-script");
 
           return new Response(
             encodeViaTurboStream(
@@ -286,10 +290,7 @@ async function handleManifestRequest(
   routes: ServerRoute[],
   url: URL
 ) {
-  let data: {
-    patches: Record<string, EntryRoute>;
-    notFoundPaths: string[];
-  } = { patches: {}, notFoundPaths: [] };
+  let patches: Record<string, EntryRoute> = {};
 
   if (url.searchParams.has("p")) {
     for (let path of url.searchParams.getAll("p")) {
@@ -297,14 +298,12 @@ async function handleManifestRequest(
       if (matches) {
         for (let match of matches) {
           let routeId = match.route.id;
-          data.patches[routeId] = build.assets.routes[routeId];
+          patches[routeId] = build.assets.routes[routeId];
         }
-      } else {
-        data.notFoundPaths.push(path);
       }
     }
 
-    return json(data, {
+    return json(patches, {
       headers: {
         "Cache-Control": "public, max-age=31536000, immutable",
       },
@@ -413,7 +412,17 @@ async function handleSingleFetchRequest(
   // network errors that are missing this header
   let resultHeaders = new Headers(headers);
   resultHeaders.set("X-Remix-Response", "yes");
-  resultHeaders.set("Content-Type", "text/x-turbo");
+
+  // 304 responses should not have a body
+  if (status === 304) {
+    return new Response(null, { status: 304, headers: resultHeaders });
+  }
+
+  // We use a less-descriptive `text/x-script` here instead of something like
+  // `text/x-turbo` to enable compression when deployed via Cloudflare.  See:
+  //  - https://github.com/remix-run/remix/issues/9884
+  //  - https://developers.cloudflare.com/speed/optimization/content/brotli/content-compression/
+  resultHeaders.set("Content-Type", "text/x-script");
 
   // Note: Deferred data is already just Promises, so we don't have to mess
   // `activeDeferreds` or anything :)
@@ -456,6 +465,11 @@ async function handleDocumentRequest(
 
   let headers = getDocumentHeaders(build, context);
 
+  // 304 responses should not have a body or a content-type
+  if (context.statusCode === 304) {
+    return new Response(null, { status: 304, headers });
+  }
+
   // Sanitize errors outside of development environments
   if (context.errors) {
     Object.values(context.errors).forEach((err) => {
@@ -481,7 +495,6 @@ async function handleDocumentRequest(
     staticHandlerContext: context,
     criticalCss,
     serverHandoffString: createServerHandoffString({
-      ssrMatches: context.matches.map((m) => m.route.id),
       basename: build.basename,
       criticalCss,
       future: build.future,
@@ -558,7 +571,6 @@ async function handleDocumentRequest(
       ...entryContext,
       staticHandlerContext: context,
       serverHandoffString: createServerHandoffString({
-        ssrMatches: context.matches.map((m) => m.route.id),
         basename: build.basename,
         future: build.future,
         isSpaMode: build.isSpaMode,

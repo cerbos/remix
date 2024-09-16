@@ -20,12 +20,14 @@ import {
   getSingleFetchDataStrategy,
 } from "./single-fetch";
 import invariant from "./invariant";
-import { initFogOfWar, useFogOFWarDiscovery } from "./fog-of-war";
+import {
+  getPatchRoutesOnNavigationFunction,
+  useFogOFWarDiscovery,
+} from "./fog-of-war";
 
 /* eslint-disable prefer-let/prefer-let */
 declare global {
   var __remixContext: {
-    ssrMatches: string[];
     basename?: string;
     state: HydrationState;
     criticalCss?: string;
@@ -44,6 +46,7 @@ declare global {
   var __remixRouteModules: RouteModules;
   var __remixManifest: AssetsManifest;
   var __remixRevalidation: number | undefined;
+  var __remixHdrActive: boolean;
   var __remixClearCriticalCss: (() => void) | undefined;
   var $RefreshRuntime$: {
     performReactRefresh: () => void;
@@ -247,35 +250,6 @@ export function RemixBrowser(_props: RemixBrowserProps): ReactElement {
         window.location,
         window.__remixContext.basename
       );
-
-      // Hard reload if the matches we rendered on the server aren't the matches
-      // we matched in the client, otherwise we'll try to hydrate without the
-      // right modules and throw a hydration error, which can put React into an
-      // infinite hydration loop when hydrating the full `<html>` document.
-      // This is usually the result of 2 rapid back/forward clicks from an
-      // external site into a Remix app, where we initially start the load for
-      // one URL and while the JS chunks are loading a second forward click moves
-      // us to a new URL.
-      let ssrMatches = window.__remixContext.ssrMatches;
-      let hasDifferentSSRMatches =
-        (initialMatches || []).length !== ssrMatches.length ||
-        !(initialMatches || []).every((m, i) => ssrMatches[i] === m.route.id);
-
-      if (hasDifferentSSRMatches && !window.__remixContext.isSpaMode) {
-        let ssr = ssrMatches.join(",");
-        let client = (initialMatches || []).map((m) => m.route.id).join(",");
-        let errorMsg =
-          `SSR Matches (${ssr}) do not match client matches (${client}) at ` +
-          `time of hydration , reloading page...`;
-        console.error(errorMsg);
-
-        window.location.reload();
-
-        // Get out of here so the reload can happen - don't create the router
-        // since it'll then kick off unnecessary route.lazy() loads
-        return <></>;
-      }
-
       if (initialMatches) {
         for (let match of initialMatches) {
           let routeId = match.route.id;
@@ -311,14 +285,6 @@ export function RemixBrowser(_props: RemixBrowserProps): ReactElement {
       }
     }
 
-    let { enabled: isFogOfWarEnabled, patchRoutesOnMiss } = initFogOfWar(
-      window.__remixManifest,
-      window.__remixRouteModules,
-      window.__remixContext.future,
-      window.__remixContext.isSpaMode,
-      window.__remixContext.basename
-    );
-
     // We don't use createBrowserRouter here because we need fine-grained control
     // over initialization to support synchronous `clientLoader` flows.
     router = createRouter({
@@ -340,12 +306,17 @@ export function RemixBrowser(_props: RemixBrowserProps): ReactElement {
       unstable_dataStrategy: window.__remixContext.future.unstable_singleFetch
         ? getSingleFetchDataStrategy(
             window.__remixManifest,
-            window.__remixRouteModules
+            window.__remixRouteModules,
+            () => router
           )
         : undefined,
-      ...(isFogOfWarEnabled
-        ? { unstable_patchRoutesOnMiss: patchRoutesOnMiss }
-        : {}),
+      unstable_patchRoutesOnNavigation: getPatchRoutesOnNavigationFunction(
+        window.__remixManifest,
+        window.__remixRouteModules,
+        window.__remixContext.future,
+        window.__remixContext.isSpaMode,
+        window.__remixContext.basename
+      ),
     });
 
     // We can call initialize() immediately if the router doesn't have any
@@ -368,7 +339,7 @@ export function RemixBrowser(_props: RemixBrowserProps): ReactElement {
   // Critical CSS can become stale after code changes, e.g. styles might be
   // removed from a component, but the styles will still be present in the
   // server HTML. This allows our HMR logic to clear the critical CSS state.
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+
   let [criticalCss, setCriticalCss] = React.useState(
     process.env.NODE_ENV === "development"
       ? window.__remixContext.criticalCss
@@ -381,10 +352,9 @@ export function RemixBrowser(_props: RemixBrowserProps): ReactElement {
   // This is due to the short circuit return above when the pathname doesn't
   // match and we force a hard reload.  This is an exceptional scenario in which
   // we can't hydrate anyway.
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+
   let [location, setLocation] = React.useState(router.state.location);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   React.useLayoutEffect(() => {
     // If we had to run clientLoaders on hydration, we delay initialization until
     // after we've hydrated to avoid hydration issues from synchronous client loaders
@@ -394,7 +364,6 @@ export function RemixBrowser(_props: RemixBrowserProps): ReactElement {
     }
   }, []);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   React.useLayoutEffect(() => {
     return router.subscribe((newState) => {
       if (newState.location !== location) {
@@ -403,7 +372,6 @@ export function RemixBrowser(_props: RemixBrowserProps): ReactElement {
     });
   }, [location]);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useFogOFWarDiscovery(
     router,
     window.__remixManifest,
