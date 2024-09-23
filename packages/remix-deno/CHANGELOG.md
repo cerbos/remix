@@ -1,15 +1,26 @@
 # `@remix-run/deno`
 
+## 2.12.1
+
+### Patch Changes
+
+- Single Fetch: Re-export `interface Future` through `@remix-run/node`/`@remix-run/cloudflare`/`@remix-run/deno` packages so that `pnpm` doesn't complain about `@remix-run/server-runtime` not being a dependency ([#9982](https://github.com/remix-run/remix/pull/9982))
+- Updated dependencies:
+  - `@remix-run/server-runtime@2.12.1`
+
 ## 2.12.0
 
 ### Patch Changes
 
-- Single Fetch: Improved typesafety ([#9893](https://github.com/remix-run/remix/pull/9893))
+- Single Fetch: Improved typesafety
+  ([#9893](https://github.com/remix-run/remix/pull/9893))
 
   If you were already using previously released unstable single-fetch types:
 
-  - Remove `"@remix-run/react/future/single-fetch.d.ts"` override from `tsconfig.json` > `compilerOptions` > `types`
-  - Remove `defineLoader`, `defineAction`, `defineClientLoader`, `defineClientAction` helpers from your route modules
+  - Remove `"@remix-run/react/future/single-fetch.d.ts"` override from
+    `tsconfig.json` > `compilerOptions` > `types`
+  - Remove `defineLoader`, `defineAction`, `defineClientLoader`,
+    `defineClientAction` helpers from your route modules
   - Replace `UIMatch_SingleFetch` type helper with `UIMatch`
   - Replace `MetaArgs_SingleFetch` type helper with `MetaArgs`
 
@@ -35,7 +46,9 @@
   });
   ```
 
-  For more information, see [Guides > Single Fetch](https://remix.run/docs/en/dev/guides/single-fetch) in our docs.
+  For more information, see
+  [Guides > Single Fetch](https://remix.run/docs/en/dev/guides/single-fetch) in
+  our docs.
 
 - Updated dependencies:
   - `@remix-run/server-runtime@2.12.0`
